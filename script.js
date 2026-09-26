@@ -1,258 +1,478 @@
-:root {
-  --bg-dark: #09131d;
-  --bg-mid: #102133;
-  --panel: rgba(12, 27, 38, 0.9);
-  --panel-border: rgba(139, 181, 255, 0.18);
-  --accent: #73d3ff;
-  --accent-2: #ffce52;
-  --success: #73ffb5;
-  --danger: #ff7d7d;
-  --text: #edf7ff;
-  --muted: #abc6d9;
-  --shadow: 0 20px 40px rgba(0, 0, 0, 0.35);
+const mainContent = document.getElementById('main-content');
+const navLinks = document.querySelectorAll('.nav-link');
+
+const basketGameMarkup = `
+  <aside class="sidebar">
+    <div class="card panel">
+      <p class="label">Featured</p>
+      <h2>Basket Bros</h2>
+      <p>
+        A fast arcade-style basketball challenge built for quick rounds and
+        flashy saves.
+      </p>
+      <ul class="feature-list">
+        <li>Move: A / D or Arrow Keys</li>
+        <li>Jump: W / Space</li>
+        <li>Throw: E or Click</li>
+      </ul>
+    </div>
+
+    <div class="card stats">
+      <div class="stat-row">
+        <span>Score</span>
+        <strong id="score">0</strong>
+      </div>
+      <div class="stat-row">
+        <span>Best</span>
+        <strong id="best">0</strong>
+      </div>
+      <div class="stat-row">
+        <span>Time</span>
+        <strong id="timer">60</strong>
+      </div>
+    </div>
+
+    <div class="card actions">
+      <button id="start-btn">Start Round</button>
+      <button id="reset-btn" class="secondary">Reset</button>
+    </div>
+  </aside>
+
+  <section class="game-panel card">
+    <div class="game-header">
+      <div>
+        <p class="label">Arena</p>
+        <h2>Basket Bros Court</h2>
+      </div>
+      <span class="status-badge" id="status-badge">Ready</span>
+    </div>
+
+    <canvas id="gameCanvas" width="960" height="540" aria-label="Basket Bros game canvas"></canvas>
+  </section>
+`;
+
+const webDashersMarkup = `
+  <section class="game-panel card" style="grid-column: 1 / -1;">
+    <div class="game-header">
+      <div>
+        <p class="label">Game</p>
+        <h2>Web Dashers</h2>
+      </div>
+      <span class="status-badge" style="color:#73d3ff; background: rgba(115,211,255,0.12); border-color: rgba(115,211,255,0.2);">Loaded</span>
+    </div>
+
+    <div class="game-frame-wrap">
+      <iframe
+        src="https://rawcdn.githack.com/web-dashers/web-dashers.github.io/refs/heads/main/index.html"
+        title="Web Dashers game"
+        allowfullscreen
+      ></iframe>
+    </div>
+  </section>
+`;
+
+const homeMarkup = `
+  <div class="home-grid">
+    <article class="game-card card">
+      <h3>Basket Bros</h3>
+      <p>Arcade basketball action with quick rounds, jumping, and fast shooting.</p>
+      <button data-game="basket-bros">Play Now</button>
+    </article>
+
+    <article class="game-card card">
+      <h3>Web Dashers</h3>
+      <p>A full browser runner game embedded directly into the hub.</p>
+      <button data-game="web-dashers">Play Now</button>
+    </article>
+  </div>
+`;
+
+function setActiveNavigation(gameName) {
+  navLinks.forEach((link) => {
+    const isActive = link.dataset.game === gameName;
+    link.classList.toggle('active', isActive);
+  });
 }
 
-* {
-  box-sizing: border-box;
+function renderHome() {
+  mainContent.innerHTML = homeMarkup;
+  setActiveNavigation('home');
+  document.querySelectorAll('[data-game]').forEach((button) => {
+    button.addEventListener('click', (e) => {
+      e.preventDefault();
+      const gameName = button.dataset.game;
+      if (gameName === 'basket-bros') renderBasketBros();
+      if (gameName === 'web-dashers') renderWebDashers();
+      if (gameName === 'home') renderHome();
+    });
+  });
 }
 
-html, body {
-  margin: 0;
-  min-height: 100%;
-  font-family: Inter, "Segoe UI", sans-serif;
-  background:
-    radial-gradient(circle at top, rgba(118, 191, 255, 0.28), transparent 25%),
-    linear-gradient(135deg, #07111a 0%, #0d1a2b 50%, #09131d 100%);
-  color: var(--text);
+function renderBasketBros() {
+  mainContent.innerHTML = basketGameMarkup;
+  setActiveNavigation('basket-bros');
+  initBasketBrosGame();
 }
 
-body {
-  display: flex;
-  justify-content: center;
-  padding: 32px 18px 48px;
-}
+function initBasketBrosGame() {
+  const canvas = document.getElementById('gameCanvas');
+  const ctx = canvas.getContext('2d');
+  const scoreEl = document.getElementById('score');
+  const bestEl = document.getElementById('best');
+  const timerEl = document.getElementById('timer');
+  const statusBadge = document.getElementById('status-badge');
+  const startBtn = document.getElementById('start-btn');
+  const resetBtn = document.getElementById('reset-btn');
 
-.page-shell {
-  width: min(1200px, 100%);
-}
+  const WIDTH = canvas.width;
+  const HEIGHT = canvas.height;
+  const GRAVITY = 0.7;
+  const FLOOR_Y = HEIGHT - 80;
 
-.topbar {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  padding: 18px 0 26px;
-  gap: 20px;
-}
+  const keys = {};
+  const game = {
+    running: false,
+    score: 0,
+    best: Number(localStorage.getItem('basketBrosBest') || 0),
+    timeLeft: 60,
+    timerHandle: null,
+    lastTimestamp: 0,
+  };
 
-.brand-wrap {
-  display: flex;
-  align-items: center;
-  gap: 14px;
-}
+  const player = {
+    x: 110,
+    y: FLOOR_Y - 64,
+    w: 42,
+    h: 64,
+    vx: 0,
+    vy: 0,
+    speed: 5.2,
+    jumpForce: 13.8,
+    onGround: true,
+    facing: 1,
+  };
 
-.brand-mark {
-  width: 48px;
-  height: 48px;
-  border-radius: 14px;
-  display: grid;
-  place-items: center;
-  font-weight: 900;
-  background: linear-gradient(135deg, var(--accent), #7cffd6);
-  color: #07141d;
-  box-shadow: var(--shadow);
-}
+  const ball = {
+    x: 190,
+    y: 360,
+    r: 16,
+    vx: 0,
+    vy: 0,
+    held: true,
+    canPickup: true,
+  };
 
-.eyebrow {
-  text-transform: uppercase;
-  letter-spacing: 0.18em;
-  font-size: 0.66rem;
-  color: var(--muted);
-  margin: 0 0 4px;
-}
+  const hoop = {
+    x: 770,
+    y: 155,
+    width: 120,
+    height: 116,
+    rimY: 170,
+  };
 
-h1, h2, p {
-  margin: 0;
-}
-
-h1 {
-  font-size: clamp(1.4rem, 1.8vw, 2rem);
-}
-
-.topnav {
-  display: flex;
-  gap: 20px;
-  flex-wrap: wrap;
-}
-
-.topnav a {
-  text-decoration: none;
-  color: var(--muted);
-  font-weight: 600;
-  transition: color 0.2s ease;
-}
-
-.topnav a:hover {
-  color: var(--text);
-}
-
-.game-layout {
-  display: grid;
-  grid-template-columns: minmax(240px, 300px) minmax(0, 1fr);
-  gap: 26px;
-  align-items: start;
-}
-
-.card {
-  background: rgba(13, 25, 35, 0.82);
-  border: 1px solid var(--panel-border);
-  border-radius: 22px;
-  box-shadow: var(--shadow);
-}
-
-.sidebar {
-  display: grid;
-  gap: 20px;
-}
-
-.panel,
-.stats,
-.actions {
-  padding: 22px 20px;
-}
-
-.label {
-  text-transform: uppercase;
-  letter-spacing: 0.14em;
-  color: var(--accent);
-  font-size: 0.68rem;
-  margin-bottom: 10px;
-}
-
-.panel h2 {
-  font-size: 1.8rem;
-  margin-bottom: 8px;
-}
-
-.panel p {
-  line-height: 1.5;
-  color: var(--muted);
-}
-
-.feature-list {
-  list-style: none;
-  padding: 0;
-  margin: 18px 0 0;
-  display: grid;
-  gap: 10px;
-  color: var(--text);
-  font-size: 0.95rem;
-}
-
-.feature-list li::before {
-  content: "•";
-  color: var(--accent-2);
-  margin-right: 8px;
-}
-
-.stats {
-  display: grid;
-  gap: 12px;
-}
-
-.stat-row {
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  font-size: 1.05rem;
-  color: var(--muted);
-}
-
-.stat-row strong {
-  color: var(--text);
-  font-size: 1.4rem;
-}
-
-.actions {
-  display: grid;
-  gap: 14px;
-}
-
-button {
-  appearance: none;
-  border: none;
-  border-radius: 12px;
-  padding: 0.9rem 1.1rem;
-  font-size: 1rem;
-  font-weight: 800;
-  cursor: pointer;
-  transition: transform 0.2s ease, filter 0.2s ease;
-}
-
-button:hover {
-  transform: translateY(-1px);
-  filter: brightness(1.05);
-}
-
-button:active {
-  transform: translateY(1px);
-}
-
-#start-btn {
-  background: linear-gradient(135deg, var(--accent), #7cf0ff);
-  color: #081821;
-}
-
-.secondary {
-  background: rgba(255, 255, 255, 0.06);
-  color: var(--text);
-  border: 1px solid rgba(255, 255, 255, 0.08);
-}
-
-.game-panel {
-  padding: 18px;
-}
-
-.game-header {
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  gap: 18px;
-  margin: 4px 4px 16px;
-}
-
-.game-header h2 {
-  font-size: clamp(1.2rem, 2vw, 1.8rem);
-}
-
-.status-badge {
-  display: inline-flex;
-  align-items: center;
-  padding: 0.5rem 0.8rem;
-  border-radius: 999px;
-  background: rgba(115, 255, 181, 0.12);
-  color: var(--success);
-  border: 1px solid rgba(115, 255, 181, 0.2);
-  font-weight: 700;
-}
-
-canvas {
-  width: 100%;
-  max-width: 960px;
-  height: auto;
-  display: block;
-  border-radius: 18px;
-  background: linear-gradient(180deg, #7ad8ff 0%, #5ea9e4 28%, #2d6b9f 28%, #1d3d5c 100%);
-  border: 2px solid rgba(255, 255, 255, 0.18);
-  box-shadow: inset 0 0 30px rgba(255, 255, 255, 0.1);
-}
-
-@media (max-width: 900px) {
-  .game-layout {
-    grid-template-columns: 1fr;
+  function resetBest() {
+    bestEl.textContent = game.best;
   }
 
-  .topbar {
-    flex-direction: column;
-    align-items: flex-start;
+  function resetBall() {
+    ball.x = player.x + 20;
+    ball.y = player.y - 18;
+    ball.vx = 0;
+    ball.vy = 0;
+    ball.held = true;
+    ball.canPickup = true;
   }
+
+  function resetPlayer() {
+    player.x = 110;
+    player.y = FLOOR_Y - player.h;
+    player.vx = 0;
+    player.vy = 0;
+    player.onGround = true;
+    player.facing = 1;
+  }
+
+  function resetGame() {
+    game.score = 0;
+    game.timeLeft = 60;
+    scoreEl.textContent = game.score;
+    timerEl.textContent = game.timeLeft;
+    statusBadge.textContent = 'Ready';
+    statusBadge.style.color = '#73ffb5';
+    statusBadge.style.background = 'rgba(115, 255, 181, 0.12)';
+    clearInterval(game.timerHandle);
+    resetPlayer();
+    resetBall();
+    resetBest();
+  }
+
+  function startRound() {
+    resetGame();
+    game.running = true;
+    statusBadge.textContent = 'Live';
+    statusBadge.style.color = '#ffce52';
+    statusBadge.style.background = 'rgba(255, 206, 82, 0.12)';
+
+    game.timerHandle = setInterval(() => {
+      if (!game.running) return;
+      game.timeLeft -= 1;
+      timerEl.textContent = Math.max(0, game.timeLeft);
+      if (game.timeLeft <= 0) endRound();
+    }, 1000);
+  }
+
+  function endRound() {
+    game.running = false;
+    clearInterval(game.timerHandle);
+    if (game.score > game.best) {
+      game.best = game.score;
+      localStorage.setItem('basketBrosBest', String(game.best));
+      bestEl.textContent = game.best;
+    }
+    statusBadge.textContent = 'Round Over';
+    statusBadge.style.color = '#ff7d7d';
+    statusBadge.style.background = 'rgba(255, 125, 125, 0.12)';
+  }
+
+  function handleInput() {
+    if (!game.running) return;
+
+    if (keys.ArrowLeft || keys.a) {
+      player.vx = -player.speed;
+      player.facing = -1;
+    } else if (keys.ArrowRight || keys.d) {
+      player.vx = player.speed;
+      player.facing = 1;
+    } else {
+      player.vx *= 0.72;
+      if (Math.abs(player.vx) < 0.2) player.vx = 0;
+    }
+
+    if ((keys.ArrowUp || keys.w || keys[' ']) && player.onGround) {
+      player.vy = -player.jumpForce;
+      player.onGround = false;
+    }
+
+    if (keys.e && ball.canPickup) {
+      if (ball.held) {
+        ball.held = false;
+        ball.vx = player.facing * 12;
+        ball.vy = -8;
+        ball.canPickup = false;
+        setTimeout(() => {
+          ball.canPickup = true;
+        }, 200);
+      }
+    }
+  }
+
+  function updatePlayer() {
+    player.x += player.vx;
+    player.y += player.vy;
+
+    if (player.y + player.h >= FLOOR_Y) {
+      player.y = FLOOR_Y - player.h;
+      player.vy = 0;
+      player.onGround = true;
+    } else {
+      player.vy += GRAVITY;
+    }
+
+    if (player.x < 0) player.x = 0;
+    if (player.x + player.w > WIDTH) player.x = WIDTH - player.w;
+  }
+
+  function updateBall() {
+    if (ball.held) {
+      ball.x = player.x + player.w / 2;
+      ball.y = player.y - 16;
+      return;
+    }
+
+    ball.x += ball.vx;
+    ball.y += ball.vy;
+    ball.vy += GRAVITY * 0.8;
+
+    if (ball.y + ball.r >= FLOOR_Y) {
+      ball.y = FLOOR_Y - ball.r;
+      ball.vy *= -0.65;
+      ball.vx *= 0.9;
+    }
+
+    if (ball.x - ball.r < 0) {
+      ball.x = ball.r;
+      ball.vx *= -0.8;
+    }
+
+    if (ball.x + ball.r > WIDTH) {
+      ball.x = WIDTH - ball.r;
+      ball.vx *= -0.8;
+    }
+
+    const nearPlayer = Math.abs(ball.x - (player.x + player.w / 2)) < 50 && Math.abs(ball.y - (player.y + 10)) < 50;
+    if (nearPlayer && ball.vy > 0 && ball.y > FLOOR_Y - 100 && ball.canPickup) {
+      ball.held = true;
+      ball.vx = 0;
+      ball.vy = 0;
+    }
+
+    const hoopLeft = hoop.x;
+    const hoopRight = hoop.x + hoop.width;
+    const hoopTop = hoop.rimY;
+    const hoopBottom = hoop.rimY + 22;
+
+    if (
+      ball.x + ball.r > hoopLeft &&
+      ball.x - ball.r < hoopRight &&
+      ball.y + ball.r > hoopTop &&
+      ball.y - ball.r < hoopBottom &&
+      ball.vy > 2
+    ) {
+      game.score += 1;
+      scoreEl.textContent = game.score;
+      ball.held = true;
+      ball.vx = 0;
+      ball.vy = 0;
+      ball.x = player.x + player.w / 2;
+      ball.y = player.y - 16;
+    }
+  }
+
+  function drawCourt() {
+    ctx.clearRect(0, 0, WIDTH, HEIGHT);
+    ctx.fillStyle = '#69c6ff';
+    ctx.fillRect(0, 0, WIDTH, HEIGHT);
+    ctx.fillStyle = '#f2d58d';
+    ctx.fillRect(0, 0, WIDTH, 260);
+    ctx.fillStyle = '#4fb96f';
+    ctx.fillRect(0, 260, WIDTH, HEIGHT - 260);
+    ctx.fillStyle = '#f7f7f7';
+    ctx.fillRect(0, FLOOR_Y, WIDTH, HEIGHT - FLOOR_Y);
+    ctx.fillStyle = '#d3d8df';
+    ctx.fillRect(0, FLOOR_Y - 14, WIDTH, 10);
+    ctx.fillStyle = '#2a3d4d';
+    ctx.fillRect(hoop.x + 8, hoop.y, 8, hoop.height);
+    ctx.fillStyle = '#f8f9fb';
+    ctx.fillRect(hoop.x + 25, hoop.y - 12, 80, 10);
+    ctx.strokeStyle = '#e9f4ff';
+    ctx.lineWidth = 6;
+    ctx.beginPath();
+    ctx.moveTo(hoop.x + 35, hoop.y + 12);
+    ctx.lineTo(hoop.x + 100, hoop.y + 12);
+    ctx.stroke();
+    ctx.fillStyle = '#eef2f7';
+    ctx.fillRect(hoop.x + 14, hoop.y + 12, 12, 90);
+    ctx.fillStyle = '#f8f9fb';
+    ctx.fillRect(hoop.x + 86, hoop.y + 12, 12, 50);
+  }
+
+  function drawPlayer() {
+    ctx.fillStyle = '#fe7e4f';
+    ctx.fillRect(player.x, player.y, player.w, player.h);
+    ctx.fillStyle = '#1f2833';
+    ctx.fillRect(player.x + (player.facing === 1 ? player.w - 8 : -2), player.y + 14, 8, 18);
+    ctx.fillStyle = '#fff';
+    ctx.fillRect(player.x + 8, player.y + 10, 10, 10);
+    ctx.fillRect(player.x + player.w - 18, player.y + 10, 10, 10);
+  }
+
+  function drawBall() {
+    ctx.beginPath();
+    ctx.fillStyle = '#ffb703';
+    ctx.arc(ball.x, ball.y, ball.r, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.beginPath();
+    ctx.strokeStyle = '#5b3f00';
+    ctx.lineWidth = 2;
+    ctx.moveTo(ball.x - 6, ball.y - 3);
+    ctx.lineTo(ball.x + 6, ball.y + 3);
+    ctx.moveTo(ball.x - 6, ball.y + 3);
+    ctx.lineTo(ball.x + 6, ball.y - 3);
+    ctx.stroke();
+  }
+
+  function drawHUD() {
+    ctx.fillStyle = 'rgba(9, 19, 29, 0.52)';
+    ctx.fillRect(18, 18, 160, 52);
+    ctx.fillStyle = '#edf7ff';
+    ctx.font = 'bold 20px sans-serif';
+    ctx.fillText(`Score: ${game.score}`, 28, 44);
+    ctx.fillText(`Time: ${Math.max(0, game.timeLeft)}`, 28, 60);
+  }
+
+  function update() {
+    if (game.running) {
+      handleInput();
+      updatePlayer();
+      updateBall();
+    }
+  }
+
+  function draw() {
+    drawCourt();
+    drawHUD();
+    drawPlayer();
+    drawBall();
+  }
+
+  function gameLoop(timestamp) {
+    const delta = timestamp - game.lastTimestamp;
+    if (delta > 0) {
+      update();
+      draw();
+      game.lastTimestamp = timestamp;
+    }
+    requestAnimationFrame(gameLoop);
+  }
+
+  window.addEventListener('keydown', (event) => {
+    const key = event.key.toLowerCase();
+    keys[event.key] = true;
+    keys[key] = true;
+    if (event.key === ' ') event.preventDefault();
+  });
+
+  window.addEventListener('keyup', (event) => {
+    const key = event.key.toLowerCase();
+    keys[event.key] = false;
+    keys[key] = false;
+  });
+
+  canvas.addEventListener('pointerdown', () => {
+    if (!game.running) return;
+    if (ball.held) {
+      ball.held = false;
+      ball.vx = player.facing * 12;
+      ball.vy = -8;
+    }
+  });
+
+  startBtn.addEventListener('click', startRound);
+  resetBtn.addEventListener('click', resetGame);
+
+  resetGame();
+  requestAnimationFrame(gameLoop);
+  window.addEventListener('blur', () => {
+    Object.keys(keys).forEach((key) => {
+      keys[key] = false;
+    });
+  });
 }
+
+function renderWebDashers() {
+  mainContent.innerHTML = webDashersMarkup;
+  setActiveNavigation('web-dashers');
+}
+
+renderHome();
+
+navLinks.forEach((link) => {
+  link.addEventListener('click', (event) => {
+    event.preventDefault();
+    const game = link.dataset.game;
+    if (!game) return;
+    if (game === 'home') renderHome();
+    if (game === 'basket-bros') renderBasketBros();
+    if (game === 'web-dashers') renderWebDashers();
+  });
+});

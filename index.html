@@ -3,10 +3,10 @@
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>Unblocked Games | Basket Bros</title>
+    <title>Unblocked Games | Game Hub</title>
     <meta
       name="description"
-      content="Play Basket Bros on this unblocked games website."
+      content="Play unblocked games including Basket Bros, Web Dashers, and more."
     />
     <link rel="stylesheet" href="style.css" />
   </head>
@@ -22,62 +22,14 @@
         </div>
 
         <nav class="topnav" aria-label="Main navigation">
-          <a href="#">Home</a>
-          <a href="#">Arcade</a>
-          <a href="#">Sports</a>
-          <a href="#">New</a>
+          <a href="#" class="nav-link active" data-game="home">Home</a>
+          <a href="#" class="nav-link" data-game="basket-bros">Basket Bros</a>
+          <a href="#" class="nav-link" data-game="web-dashers">Web Dashers</a>
+          <a href="#" class="nav-link">More Coming</a>
         </nav>
       </header>
 
-      <main class="game-layout">
-        <aside class="sidebar">
-          <div class="card panel">
-            <p class="label">Featured</p>
-            <h2>Basket Bros</h2>
-            <p>
-              A fast arcade-style basketball challenge built for quick rounds and
-              flashy saves.
-            </p>
-            <ul class="feature-list">
-              <li>Move: A / D or Arrow Keys</li>
-              <li>Jump: W / Space</li>
-              <li>Throw: E or Click</li>
-            </ul>
-          </div>
-
-          <div class="card stats">
-            <div class="stat-row">
-              <span>Score</span>
-              <strong id="score">0</strong>
-            </div>
-            <div class="stat-row">
-              <span>Best</span>
-              <strong id="best">0</strong>
-            </div>
-            <div class="stat-row">
-              <span>Time</span>
-              <strong id="timer">60</strong>
-            </div>
-          </div>
-
-          <div class="card actions">
-            <button id="start-btn">Start Round</button>
-            <button id="reset-btn" class="secondary">Reset</button>
-          </div>
-        </aside>
-
-        <section class="game-panel card">
-          <div class="game-header">
-            <div>
-              <p class="label">Arena</p>
-              <h2>Basket Bros Court</h2>
-            </div>
-            <span class="status-badge" id="status-badge">Ready</span>
-          </div>
-
-          <canvas id="gameCanvas" width="960" height="540" aria-label="Basket Bros game canvas"></canvas>
-        </section>
-      </main>
+      <main class="game-layout" id="main-content"></main>
     </div>
 
     <script src="script.js"></script>
